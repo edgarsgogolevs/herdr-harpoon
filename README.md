@@ -8,6 +8,16 @@ a local one.
 
 ![Harpoon popup](preview.png)
 
+## Contents
+
+- [What it does](#what-it-does)
+  - [The marks editor](#the-marks-editor)
+  - [The marks file](#the-marks-file)
+- [Setup](#setup)
+- [Files](#files)
+- [AI Disclosure](#ai-disclosure)
+- [License](#license)
+
 ## What it does
 
 Press `ctrl-space h` and a small popup lists your marks. The next key decides:
@@ -117,13 +127,10 @@ binding, and `~/.config/herdr-app/data/harpoon`.
 | `vim.js` | The vim emulation: pure logic, no Herdr imports |
 | `mod.json` | Opens the mod as a popup at the top of the window |
 
-## How it was made
+## AI Disclosure
 
-This mod was written with [Claude Code](https://claude.com/claude-code)
-(Anthropic's Claude), working in a Herdr session alongside me: Claude wrote
-the code and this README, I set the requirements, tested it in the app and
-reviewed the result. The commits made this way carry a `Co-Authored-By: Claude`
-trailer.
+This mod was vibe coded with Claude Opus 5.5
+
 
 ## License
 
