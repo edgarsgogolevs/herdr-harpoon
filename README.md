@@ -6,7 +6,7 @@ then jump to any of them with two keys. Marks work across machines: a terminal
 on a remote Herdr machine (`arch/t2`) is marked and jumped to the same way as
 a local one.
 
-![Harpoon popup](preview.png)
+![Harpoon marks editor](preview.png)
 
 ## Contents
 
@@ -14,6 +14,8 @@ a local one.
   - [The marks editor](#the-marks-editor)
   - [The marks file](#the-marks-file)
 - [Setup](#setup)
+  - [With your agent](#with-your-agent)
+  - [By hand](#by-hand)
 - [Files](#files)
 - [AI Disclosure](#ai-disclosure)
 - [License](#license)
@@ -21,6 +23,8 @@ a local one.
 ## What it does
 
 Press `ctrl-space h` and a small popup lists your marks. The next key decides:
+
+![Harpoon popup](popup.png)
 
 | Keys | Does |
 |---|---|
@@ -34,9 +38,8 @@ You can also click a mark in the popup to go to it.
 ### The marks editor
 
 The editor is drawn by the mod itself (no terminal, no nvim), so it opens
-instantly. It knows enough vim to reorder and delete lines:
-
-![Harpoon marks editor](editor.png)
+instantly. It knows enough vim to reorder and delete lines (pictured at the
+top):
 
 | | |
 |---|---|
@@ -79,17 +82,37 @@ happens on the computer that runs the Herdr app: the mod, the key binding and
 the marks file all live in `~/.config/herdr-app` there. Remote machines need
 nothing installed; their terminals can be marked as soon as Herdr shows them.
 
-1. Clone this repo as a mod folder:
+### With your agent
+
+Ask the coding agent in your Herdr app to add it:
+
+> Add the mod from https://github.com/edgarsgogolevs/herdr-harpoon
+
+Herdr's own instructions (`~/.config/herdr-app/AGENTS.md`) tell it to read
+every file first, copy `mods/harpoon` into your mods, merge `keys.json` into
+yours (asking before replacing a key you already use) and run the check.
+
+### By hand
+
+1. Copy the mod folder into your Herdr mods:
 
    ```sh
-   git clone https://github.com/edgarsgogolevs/herdr-harpoon ~/.config/herdr-app/mods/harpoon
+   git clone https://github.com/edgarsgogolevs/herdr-harpoon ~/Projects/herdr-harpoon
+   cp -r ~/Projects/herdr-harpoon/mods/harpoon ~/.config/herdr-app/mods/harpoon
    ```
 
-   The folder must be named `harpoon`: the popup and the editor window open
-   the mod by that name.
+   Or, to update with `git pull`, symlink it instead of copying (Herdr follows
+   the link and reloads on changes):
+
+   ```sh
+   ln -s ~/Projects/herdr-harpoon/mods/harpoon ~/.config/herdr-app/mods/harpoon
+   ```
+
+   The folder must be named `harpoon`: the popup opens the editor window by
+   that name.
 
 2. Bind one key. Add this line to the `"global"` section of
-   `~/.config/herdr-app/keys.json`:
+   `~/.config/herdr-app/keys.json` (it's also in this repo's `keys.json`):
 
    ```json
    "ctrl-space h": "mod.open:harpoon",
@@ -115,17 +138,19 @@ nothing installed; their terminals can be marked as soon as Herdr shows them.
    there and in `~/.config/herdr-app/keys.error`).
 
 Herdr reloads mods and keys live, so there's nothing to restart. The marks
-file and its folder are created the first time you mark a terminal. To update
-the mod, `git pull` in its folder. To remove it, delete the folder, the
-binding, and `~/.config/herdr-app/data/harpoon`.
+file and its folder are created the first time you mark a terminal. To remove
+the mod, delete `~/.config/herdr-app/mods/harpoon`, the binding, and
+`~/.config/herdr-app/data/harpoon`.
 
 ## Files
 
 | File | |
 |---|---|
-| `main.js` | The popup, the editor window, marking and jumping |
-| `vim.js` | The vim emulation: pure logic, no Herdr imports |
-| `mod.json` | Opens the mod as a popup at the top of the window |
+| `mods/harpoon/main.js` | The popup, the editor window, marking and jumping |
+| `mods/harpoon/vim.js` | The vim emulation: pure logic, no Herdr imports |
+| `mods/harpoon/mod.json` | Opens the mod as a popup at the top of the window |
+| `keys.json` | The one key binding, to merge into yours |
+| `RECIPE.md` | The brief another agent can rebuild the mod from (herdr.dev) |
 
 ## AI Disclosure
 
