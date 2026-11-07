@@ -18,9 +18,10 @@
 
 import { View, div } from "gpui-kit";
 import { Vim } from "./vim.js";
+import { mkdir } from "fs/promises";
 import { v_flex, h_flex } from "gpui-base";
 import {
-  appHome, exec, run, theme, settings, props, focused, panes, spaces, terminals,
+  appHome, run, theme, settings, props, focused, panes, spaces, terminals,
   readTextFile, writeTextFile, openOverlay, closeOverlay, notify,
 } from "herdr";
 
@@ -54,7 +55,7 @@ function describe(addr) {
 }
 
 async function ensureDir() {
-  await exec("mkdir", ["-p", DIR()]);
+  await mkdir(DIR(), { recursive: true });
 }
 
 // Show a marked terminal: its space, its tab, its pane (any machine).

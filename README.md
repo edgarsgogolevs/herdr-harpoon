@@ -64,7 +64,10 @@ arch/t2  arch: ~ › 1 · zsh
 
 ## Setup
 
-Requires the Herdr app (built and tested on 0.1.13).
+Requires the Herdr app (built and tested on 0.1.13 on Linux). Everything
+happens on the computer that runs the Herdr app: the mod, the key binding and
+the marks file all live in `~/.config/herdr-app` there. Remote machines need
+nothing installed; their terminals can be marked as soon as Herdr shows them.
 
 1. Clone this repo as a mod folder:
 
@@ -72,17 +75,25 @@ Requires the Herdr app (built and tested on 0.1.13).
    git clone https://github.com/edgarsgogolevs/herdr-harpoon ~/.config/herdr-app/mods/harpoon
    ```
 
-   The folder must be named `harpoon`: the editor window opens the mod by
-   that name.
+   The folder must be named `harpoon`: the popup and the editor window open
+   the mod by that name.
 
-2. Bind the key. Add this line to the `"global"` section of
+2. Bind one key. Add this line to the `"global"` section of
    `~/.config/herdr-app/keys.json`:
 
    ```json
    "ctrl-space h": "mod.open:harpoon",
    ```
 
-   Any other key works too; the popup handles the keys after it.
+   This is the only binding. The popup reads the next key itself (`a`, `h`,
+   `1`–`9`, `esc`), and the editor reads its vim keys itself, so neither goes
+   in `keys.json`. Pick any key you like instead of `ctrl-space h`; a single
+   chord such as `"alt-h"` works too. Bindings in the `global` section win
+   over the terminal, so the program in the terminal no longer gets that key.
+
+   Note: if you've never edited `keys.json`, Herdr updates it with new default
+   shortcuts on upgrade. Once you edit it (even this one line), the file is
+   yours and new default shortcuts have to be added by hand.
 
 3. Check it loaded:
 
@@ -90,8 +101,13 @@ Requires the Herdr app (built and tested on 0.1.13).
    herdr-app check ~/.config/herdr-app/mods/harpoon
    ```
 
-Herdr reloads mods and keys live, so there's nothing to restart. To update,
-`git pull` in the mod folder.
+   and check `herdr-app status` shows no errors (a bad `keys.json` is reported
+   there and in `~/.config/herdr-app/keys.error`).
+
+Herdr reloads mods and keys live, so there's nothing to restart. The marks
+file and its folder are created the first time you mark a terminal. To update
+the mod, `git pull` in its folder. To remove it, delete the folder, the
+binding, and `~/.config/herdr-app/data/harpoon`.
 
 ## Files
 
