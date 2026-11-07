@@ -6,7 +6,7 @@ then jump to any of them with two keys. Marks work across machines: a terminal
 on a remote Herdr machine (`arch/t2`) is marked and jumped to the same way as
 a local one.
 
-<!-- ![Harpoon](preview.png) -->
+![Harpoon popup](preview.png)
 
 ## What it does
 
@@ -25,6 +25,8 @@ You can also click a mark in the popup to go to it.
 
 The editor is drawn by the mod itself (no terminal, no nvim), so it opens
 instantly. It knows enough vim to reorder and delete lines:
+
+![Harpoon marks editor](editor.png)
 
 | | |
 |---|---|
