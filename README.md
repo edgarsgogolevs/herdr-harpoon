@@ -116,3 +116,15 @@ binding, and `~/.config/herdr-app/data/harpoon`.
 | `main.js` | The popup, the editor window, marking and jumping |
 | `vim.js` | The vim emulation: pure logic, no Herdr imports |
 | `mod.json` | Opens the mod as a popup at the top of the window |
+
+## How it was made
+
+This mod was written with [Claude Code](https://claude.com/claude-code)
+(Anthropic's Claude), working in a Herdr session alongside me: Claude wrote
+the code and this README, I set the requirements, tested it in the app and
+reviewed the result. The commits made this way carry a `Co-Authored-By: Claude`
+trailer.
+
+## License
+
+[MIT](LICENSE) © 2026 Edgars Gogoļevs
