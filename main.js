@@ -2,7 +2,7 @@
 //
 // Opened as a popup with `mod.open:harpoon` (bound to `ctrl-space h`); the
 // next key picks what to do:
-//   h      edit the marks file in a floating nvim (move / delete lines)
+//   h      edit the marks in a floating vim-like window (vim.js)
 //   a      mark the focused terminal (does nothing if already marked)
 //   1-9    go to that mark (selects its space and tab, focuses its pane)
 //   esc    close
@@ -12,20 +12,20 @@
 // The first word is the terminal address (`t7` here, `arch/t2` on machine
 // "arch"); the rest of the line is a note for you and is ignored.
 //
-// The editor is nvim with no config (`--clean`), started with `hc run` and
-// shown with Herdr's own terminal.peek, which gives it the keyboard and
-// closes when nvim exits.
+// The editor is drawn by this mod (props.role "editor"), no terminal: it
+// opens at once and takes the keyboard itself. Esc saves and closes, :q! drops
+// changes, Enter goes to the mark under the cursor.
 
 import { View, div } from "gpui-kit";
+import { Vim } from "./vim.js";
 import { v_flex, h_flex } from "gpui-base";
 import {
-  appHome, hc, exec, run, theme, props, focused, panes, spaces, terminals,
-  readTextFile, writeTextFile, closeOverlay, notify,
+  appHome, exec, run, theme, settings, props, focused, panes, spaces, terminals,
+  readTextFile, writeTextFile, openOverlay, closeOverlay, notify,
 } from "herdr";
 
 const DIR = () => `${appHome()}/data/harpoon`;
 const FILE = () => `${DIR()}/marks.txt`;
-const NVIM = ["nvim", "--clean", "-n", "-i", "NONE", "+set number nowrap"];
 
 function parse(text) {
   return (text ?? "")
@@ -53,7 +53,26 @@ function describe(addr) {
   return `${machine}${w.space?.name ?? "?"} › ${w.tab?.name ?? "?"} · ${w.pane.program?.name ?? w.pane.title ?? ""}`;
 }
 
-export default class Harpoon extends View {
+async function ensureDir() {
+  await exec("mkdir", ["-p", DIR()]);
+}
+
+// Show a marked terminal: its space, its tab, its pane (any machine).
+function goTo(addr, label) {
+  const w = where(addr);
+  if (w) {
+    if (w.space && !w.space.active) run("space.select", { id: w.space.id });
+    if (w.tab && !w.tab.active) run("tab.select", { id: w.tab.id });
+    run("pane.focus", { pane: w.pane.pane });
+  } else if (terminals().some((t) => t.address === addr && t.state === "live")) {
+    run("terminal.peek", { terminal: addr });
+  } else {
+    notify({ title: `Harpoon ${label}`, body: `${addr} is gone`, level: "warning", timeout: 2500 });
+  }
+}
+
+// The popup: ctrl-space h, then a key.
+class Menu {
   init(_props, cx) {
     this.handle = cx.focus_handle();
     this.marks = [];
@@ -69,10 +88,6 @@ export default class Harpoon extends View {
     closeOverlay(props().overlay);
   }
 
-  async ensureDir() {
-    await exec("mkdir", ["-p", DIR()]);
-  }
-
   add(cx) {
     const addr = focused()?.terminal;
     if (!addr) {
@@ -83,7 +98,7 @@ export default class Harpoon extends View {
       try {
         const text = await readTextFile(FILE());
         if (!parse(text).includes(addr)) {
-          await this.ensureDir();
+          await ensureDir();
           const base = text ?? "";
           const sep = base && !base.endsWith("\n") ? "\n" : "";
           await writeTextFile(FILE(), `${base}${sep}${addr}  ${describe(addr)}\n`, text);
@@ -99,36 +114,20 @@ export default class Harpoon extends View {
   jump(n) {
     const addr = this.marks[n - 1];
     this.close();
-    if (!addr) return;
-    const w = where(addr);
-    if (w) {
-      if (w.space && !w.space.active) run("space.select", { id: w.space.id });
-      if (w.tab && !w.tab.active) run("tab.select", { id: w.tab.id });
-      run("pane.focus", { pane: w.pane.pane });
-    } else if (terminals().some((t) => t.address === addr && t.state === "live")) {
-      run("terminal.peek", { terminal: addr });
-    } else {
-      notify({ title: `Harpoon ${n}`, body: `${addr} is gone`, level: "warning", timeout: 2500 });
-    }
+    if (addr) goTo(addr, n);
   }
 
   edit(cx) {
     cx.spawn(async (cx) => {
-      try {
-        await this.ensureDir();
-        const text = await readTextFile(FILE());
-        if (text === null) await writeTextFile(FILE(), "", null);
-        const r = await hc(["run", "--bg", "--json", "--rm", "--no-parent", "--cwd", DIR(), "--", ...NVIM, FILE()]);
-        if (r.code !== 0) throw new Error(r.stderr || r.stdout);
-        const terminal = JSON.parse(r.stdout).address;
-        // Peek only knows terminals the app has already seen: wait for it.
-        for (let i = 0; i < 40 && !terminals().some((t) => t.address === terminal && t.state === "live"); i++) await cx.sleep(50);
-        this.close();
-        run("terminal.peek", { terminal });
-        return;
-      } catch (e) {
-        notify({ title: "Harpoon", body: `Couldn't open the editor: ${e}`, level: "error" });
-      }
+      const text = await readTextFile(FILE());
+      openOverlay({
+        kind: "window",
+        key: "harpoon-editor",
+        width: 640,
+        height: 340,
+        mod: "harpoon",
+        props: { role: "editor", text, pane: focused()?.pane ?? null },
+      });
       this.close();
     });
   }
@@ -179,5 +178,162 @@ export default class Harpoon extends View {
             .child(div().flex_1().truncate().text_color(t.foreground).child(describe(addr)));
         }),
       );
+  }
+}
+
+// Keys as vim.js names them: typed characters as themselves ("$", "V"),
+// others by name ("escape", "enter", "space"), control chords as "ctrl-r".
+function vimKey(e) {
+  if (e.modifiers.control) return `ctrl-${e.key}`;
+  const c = e.key_char;
+  if (c && c.length === 1 && c !== " ") return c;
+  return e.key;
+}
+
+const LINE = 20;
+
+// The marks editor: a floating window this mod draws.
+class Editor {
+  init(_props, cx) {
+    const p = props();
+    this.expected = p.text ?? null;
+    this.vim = new Vim(p.text ?? "");
+    this.top = 0;
+    this.rows = 12;
+    this.handle = cx.focus_handle();
+    this.handle.focus();
+    cx.timer.after(60, () => this.handle.focus());
+  }
+
+  close(back = true) {
+    const { overlay, pane } = props();
+    closeOverlay(overlay);
+    if (back && pane) run("pane.focus", { pane });
+  }
+
+  async save() {
+    const text = this.vim.text();
+    await ensureDir();
+    await writeTextFile(FILE(), text, this.expected);
+    this.expected = text;
+    this.vim.dirty = false;
+    this.vim.msg = `"marks.txt" ${parse(text).length} marks written`;
+  }
+
+  act(r, cx) {
+    if (!r) return;
+    cx.spawn(async (cx) => {
+      try {
+        if (r.action === "save") {
+          await this.save();
+          if (r.close) return this.close();
+        } else if (r.action === "close") {
+          if (this.vim.dirty && !r.discard) await this.save();
+          return this.close();
+        } else if (r.action === "jump") {
+          const addr = parse(this.vim.lines[r.row])[0];
+          if (!addr) return;
+          if (this.vim.dirty) await this.save();
+          this.close(false);
+          goTo(addr, r.row + 1);
+          return;
+        }
+      } catch (e) {
+        this.vim.msg = `E: ${e}`;
+      }
+      cx.notify();
+    });
+  }
+
+  render() {
+    const t = theme();
+    const v = this.vim;
+    const mono = settings().font_family ?? "JetBrains Mono";
+    if (v.row < this.top) this.top = v.row;
+    if (v.row >= this.top + this.rows) this.top = v.row - this.rows + 1;
+    this.top = Math.max(0, Math.min(this.top, Math.max(0, v.lines.length - this.rows)));
+    const sel = v.selection();
+    const cursorOn = v.mode !== "command";
+
+    const line = (text, i) => {
+      const here = i === v.row;
+      const picked = sel && i >= sel[0] && i <= sel[1];
+      const body = h_flex().flex_1().min_w(0).overflow_hidden().whitespace_nowrap();
+      if (here && cursorOn) {
+        const ch = text[v.col] ?? " ";
+        body
+          .child(div().child(text.slice(0, v.col)))
+          .child(div().bg(t.foreground).text_color(t.background).child(ch === " " ? "\u00a0" : ch))
+          .child(div().child(text.slice(v.col + 1)));
+      } else body.child(div().child(text || "\u00a0"));
+      return h_flex()
+        .id(`ln-${i}`)
+        .h(LINE)
+        .flex_none()
+        .px(8)
+        .gap(10)
+        .items_center()
+        .when(Boolean(picked), (el) => el.bg(t.selection))
+        .when(here && !picked, (el) => el.bg(t.hover))
+        .child(div().w(22).flex_none().text_right().text_color(here ? t.accent : t.dim).child(String(i + 1)))
+        .child(body.text_color(t.foreground));
+    };
+
+    const mode = v.mode === "visual" ? "-- VISUAL LINE --" : "";
+    const left = v.mode === "command" ? `:${v.cmd}` : v.msg || mode;
+    const bad = v.msg.startsWith("E");
+
+    return v_flex()
+      .id("hp-editor")
+      .track_focus(this.handle)
+      .size_full()
+      .bg(t.popover)
+      .text_size(13)
+      .on_key_down((e, cx) => {
+        this.act(v.key(vimKey(e)), cx);
+        cx.stop_propagation();
+        cx.notify();
+      })
+      .child(
+        h_flex().h(30).flex_none().px(12).gap(8).items_center().border_b(1).border_color(t.border)
+          .child(div().font_semibold().text_color(t.foreground).child("Harpoon marks"))
+          .when(v.dirty, (el) => el.child(div().text_color(t.dim).child("[+]")))
+          .child(div().flex_1())
+          .child(div().text_size(11).text_color(t.dim).child("Enter go · :w save · Esc save & close · :q! drop")),
+      )
+      .child(
+        v_flex()
+          .id("hp-lines")
+          .flex_1()
+          .min_h(0)
+          .py(4)
+          .overflow_hidden()
+          .font_family(mono)
+          .on_size_change((size, cx) => {
+            const rows = Math.max(1, Math.floor((size.height - 8) / LINE));
+            if (rows !== this.rows) { this.rows = rows; cx.notify(); }
+          })
+          .children(v.lines.slice(this.top, this.top + this.rows).map((l, k) => line(l, this.top + k))),
+      )
+      .child(
+        h_flex().h(24).flex_none().px(10).gap(8).items_center().border_t(1).border_color(t.border).font_family(mono).text_size(12)
+          .child(
+            h_flex().flex_1().min_w(0).items_center()
+              .child(div().truncate().text_color(bad ? t.blocked : v.mode === "visual" ? t.accent : t.foreground).child(left))
+              .when(v.mode === "command", (el) => el.child(div().flex_none().w(7).h(14).bg(t.foreground))),
+          )
+          .child(div().text_color(t.dim).child(`${v.pending}${v.count}`))
+          .child(div().text_color(t.dim).child(`${v.row + 1},${v.col + 1}`)),
+      );
+  }
+}
+
+export default class Harpoon extends View {
+  init(p, cx) {
+    this.inner = props()?.role === "editor" ? new Editor() : new Menu();
+    this.inner.init(p, cx);
+  }
+  render(cx) {
+    return this.inner.render(cx);
   }
 }
